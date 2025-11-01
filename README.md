@@ -53,6 +53,27 @@ python -m agents.hw_assessor
 
 The legacy `./hw_assessor.py` launcher remains available for compatibility and delegates to the packaged module.
 
+## Frontend (SPA) Foundation
+
+The React/Vite SPA lives in `frontend/` and ships two primary modes:
+
+- **Explore** — host-focused tree view for drilling into categories.
+- **Compare** — multi-host grid with export actions (CSV/PDF) wired to client and upcoming API endpoints.
+
+The theme tokens match the broader ActCLI palette (`docs/actcli-theme-reference.md`).
+
+```bash
+# from repository root
+cd frontend
+npm install        # installs Vite + React dependencies
+npm run dev        # launches on http://localhost:5173
+
+npm run build      # type checks + bundles
+npm run preview    # serve the production bundle locally
+```
+
+All exports are stubbed with placeholder data until the API comparison endpoint is available.
+
 ## Testing
 Unit tests cover pure helper logic (parsing, recommendations) and serve as a foundation for broader mocks.
 ```bash
