@@ -3,11 +3,13 @@
 Hardware Insight Console (HIC) turns the existing `hw_assessor.py` hardware profiler into a FastAPI + SPA service that can inventory LAN hosts, run remote assessments over SSH, and present upgrade-friendly reports. This repo currently holds the prototype script, discovery vision, and remote configuration notes while we scaffold the full stack.
 
 ## Current Contents
-- `hw_assessor.py` – Markdown report generator for the local host.
+- `agents/hw_assessor/` – Packaged Markdown report generator with module entrypoints.
+- `hw_assessor.py` – Backwards-compatible launcher for the packaged assessor.
 - `hw_assessor-readme.md` – Usage and deployment notes for the script.
 - `hw_assessor-msi-raider-linux.local.*` – Sample output/logs captured from a real machine.
 - `Vision-Concept.md` – Product strategy, MVP scope, and roadmap.
 - `Github -Info.md` – SSH endpoints for GitHub and Gitea remotes.
+- `docs/backlog.md` – Development backlog and roadmap.
 
 ## Roadmap (MVP Week)
 1. Package the hardware assessor for remote execution (Paramiko/AsyncSSH wrapper).
@@ -32,3 +34,31 @@ pip install --upgrade pip
 ```
 
 Once the FastAPI service lands, we will add `requirements.txt`, backend entrypoints, and frontend tooling. For now, review the vision doc and script to align on architecture.
+
+## Using the Hardware Assessor Locally
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .  # installs the packaged assessor (hw-assessor entrypoint)
+
+# run the assessor via module or script
+hw-assessor | tee "hw_assessor-$(hostname).md"
+# or
+python -m agents.hw_assessor
+```
+
+The legacy `./hw_assessor.py` launcher remains available for compatibility and delegates to the packaged module.
+
+## Testing
+Unit tests cover pure helper logic (parsing, recommendations) and serve as a foundation for broader mocks.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+pip install pytest
+pytest
+```
+
+The repository’s `pyproject.toml` defines project metadata, entry points, and will grow with API dependencies as the FastAPI service takes shape.

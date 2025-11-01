@@ -17,6 +17,8 @@ ENV/
 # Node / frontend
 node_modules/
 .pnpm-store/
+.pytest_cache/
+htmlcov/
 
 # OS files
 .DS_Store

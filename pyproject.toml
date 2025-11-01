@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "actcli-hw-assessor"
+version = "0.1.0"
+description = "Hardware inspection CLI used by ActCLI-HIC"
+authors = [{name = "ActCLI", email = "support@atccli.dev"}]
+readme = "hw_assessor-readme.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+keywords = ["hardware", "inventory", "markdown", "cli"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = []
+
+[project.scripts]
+hw-assessor = "agents.hw_assessor:main"
+
+[tool.setuptools]
+packages = ["agents", "agents.hw_assessor"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"agents.hw_assessor" = []
