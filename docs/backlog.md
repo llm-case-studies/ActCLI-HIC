@@ -29,6 +29,14 @@
 - [ ] Present upgrade opportunities with sourcing links.
 - [ ] Introduce report history diffing (per host timeline).
 - [ ] Add authentication (bearer token via env/config) for API and SPA.
+- [ ] Build modular insights panel so users can toggle deep-dive modules.
+
+## Sprint 5 – Operational Insights Expansion
+- [ ] Collect OS/package inventory (e.g., `rpm`, `dpkg`, `flatpak`) with configurable depth.
+- [ ] Report local accounts, sudoers membership, and recent logins with privacy-safe filtering.
+- [ ] Capture filesystem utilization (`df`, quotas) and alert thresholds.
+- [ ] Enumerate running services/containers (systemd, Docker, Podman) with resource stats.
+- [ ] Surface software/version diffs between assessments to highlight drift.
 
 ## Tooling & Ops
 - [ ] Configure pre-commit hooks (ruff, black, mypy, eslint, prettier).
