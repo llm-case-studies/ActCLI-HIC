@@ -38,6 +38,13 @@
 - [ ] Enumerate running services/containers (systemd, Docker, Podman) with resource stats.
 - [ ] Surface software/version diffs between assessments to highlight drift.
 
+## Sprint 6 – Intelligence & Knowledge Services
+- [ ] Add optional web lookup pipeline (cached HTTP client + rate limiting) for vendor docs and CVEs.
+- [ ] Integrate lightweight (~3B) local LLM via REST/gRPC for on-device summarization and Q&A.
+- [ ] Provide prompt templates for “explain this report”, “suggest next upgrades”, “compare hosts”.
+- [ ] Expose AI-driven insights through API and SPA (chat sidebar, contextual tooltips).
+- [ ] Implement opt-in data governance controls (no external calls, anonymized logs, prompt history purge).
+
 ## Tooling & Ops
 - [ ] Configure pre-commit hooks (ruff, black, mypy, eslint, prettier).
 - [ ] Add CI workflows (GitHub Actions/Gitea Actions parity) for lint/test/build.
