@@ -180,8 +180,16 @@ def parse_size_to_gb(text):
 
 
 def parse_speed_mts(text):
-    match = re.search(r"(\d+)", text or "")
-    return int(match.group(1)) if match else None
+    if not text:
+        return None
+    matches = re.findall(r"(\d+)", text)
+    if not matches:
+        return None
+    values = [int(value) for value in matches]
+    for value in reversed(values):
+        if value >= 1000:
+            return value
+    return max(values)
 
 
 def metrics_from_data(cpu, mem_info, total_mem_mb, gpus_pci, gpus_nv, disks):
@@ -576,4 +584,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
