@@ -50,3 +50,15 @@
 - [ ] Add CI workflows (GitHub Actions/Gitea Actions parity) for lint/test/build.
 - [ ] Provide Docker Compose for dev stack (API, frontend, optional postgres).
 - [ ] Document deployment steps (systemd service, reverse proxy, HTTPS).
+
+### SPA Export Strategy
+
+- Add comparison view export menu with options: `CSV (client)`, `PDF – in-browser`, `PDF – server download`.
+- Build a shared comparison serializer (JS + Python) so both SPA and API produce identical tables.
+- Client-side: use `json2csv` for CSV, `@react-pdf/renderer` for PDF; skip heavy tasks on narrow/mobile viewports and link to API export instead.
+- API endpoints:
+  - `GET /exports/comparison.csv?hosts=...&categories=...`
+  - `GET /exports/comparison.pdf?hosts=...&categories=...&theme=ledger|analyst`
+  - Return `Attachment` downloads; reuse serializer, guard with auth & rate limits.
+- Preserve theme tokens across exports; provide a print-friendly (high-contrast) toggle.
+- Document the workflow in the design system so other ActCLI apps follow the same pattern.
