@@ -2,6 +2,8 @@
 
 Hardware Insight Console (HIC) turns the existing `hw_assessor.py` hardware profiler into a FastAPI + SPA service that can inventory LAN hosts, run remote assessments over SSH, and present upgrade-friendly reports. This repo currently holds the prototype script, discovery vision, and remote configuration notes while we scaffold the full stack.
 
+The Hardware Insight Console bridges the gap between powerful CLI tooling and approachable reporting for “power casual” users—professionals who rely on their machines but don’t live inside terminals.
+
 ## Current Contents
 - `agents/hw_assessor/` – Packaged Markdown report generator with module entrypoints.
 - `hw_assessor.py` – Backwards-compatible launcher for the packaged assessor.
@@ -21,7 +23,7 @@ See `Vision-Concept.md` for full context and long-term plans.
 
 ## Git Remotes
 - GitHub: `git@github.com:llm-case-studies/ActCLI-HIC.git`
-- Gitea: `omv-elbo-gitea:FunGitea/ActCLI-HIC.git`
+- Gitea: `omv-elbo-gitea:FunGitea/Actli-HIC.git`
 
 Use `git remote -v` after cloning to confirm both are configured.
 
