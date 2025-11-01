@@ -23,7 +23,7 @@ See `Vision-Concept.md` for full context and long-term plans.
 
 ## Git Remotes
 - GitHub: `git@github.com:llm-case-studies/ActCLI-HIC.git`
-- Gitea: `omv-elbo-gitea:FunGitea/Actli-HIC.git`
+- Gitea: `omv-elbo-gitea:FunGitea/ActCLI-HIC.git`
 
 Use `git remote -v` after cloning to confirm both are configured.
 

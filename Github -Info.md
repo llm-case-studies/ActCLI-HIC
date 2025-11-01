@@ -1,6 +1,6 @@
 
 git@github.com:llm-case-studies/ActCLI-HIC.git
 
-omv-elbo-gitea:FunGitea/Actli-HIC.git
+omv-elbo-gitea:FunGitea/ActCLI-HIC.git
 
-http://omv-elbo.local:3000/FunGitea/Actli-HIC
+http://omv-elbo.local:3000/FunGitea/ActCLI-HIC
