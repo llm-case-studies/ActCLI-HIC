@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 
 from .config import get_settings
@@ -31,6 +32,28 @@ def init_db() -> None:
 
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
+    _maybe_upgrade_schema(engine)
+
+
+def _maybe_upgrade_schema(engine) -> None:
+    """Apply simple, idempotent schema migrations (SQLite only)."""
+
+    if engine.url.get_backend_name() != "sqlite":
+        return
+
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info('host')"))
+        }
+        if "source" not in columns:
+            connection.execute(text("ALTER TABLE host ADD COLUMN source TEXT"))
+        if "notes" not in columns:
+            connection.execute(text("ALTER TABLE host ADD COLUMN notes TEXT"))
+        if "is_active" not in columns:
+            connection.execute(text("ALTER TABLE host ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+        if "allow_privileged" not in columns:
+            connection.execute(text("ALTER TABLE host ADD COLUMN allow_privileged BOOLEAN DEFAULT 1"))
 
 
 @contextmanager

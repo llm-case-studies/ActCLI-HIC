@@ -8,9 +8,19 @@ from typing import Iterable
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlmodel import Session, select
 
-from .. import models
+from .. import models, discovery
 from ..db import get_session, init_db, session_scope
-from ..schemas import HostCreate, HostRead, JobCreate, JobRead, ReportRead
+from ..schemas import (
+    HostCreate,
+    HostRead,
+    HostUpdate,
+    HostDiscovery,
+    HostCheckRequest,
+    HostCheckResponse,
+    JobCreate,
+    JobRead,
+    ReportRead,
+)
 
 router = APIRouter()
 
@@ -34,6 +44,10 @@ def _host_to_schema(host: models.Host) -> HostRead:
         hostname=host.hostname,
         address=host.address,
         tags=_parse_tags(host.tags),
+        source=host.source,
+        notes=host.notes,
+        is_active=host.is_active,
+        allow_privileged=host.allow_privileged,
         last_seen_at=host.last_seen_at,
         created_at=host.created_at,
     )
@@ -72,6 +86,45 @@ def list_hosts(session: Session = Depends(get_session)) -> list[HostRead]:
     return [_host_to_schema(host) for host in hosts]
 
 
+@router.get("/discover/hosts", response_model=list[HostDiscovery])
+def discover_hosts(session: Session = Depends(get_session)) -> list[HostDiscovery]:
+    discovered = discovery.discover_hosts()
+    known_hosts = session.exec(select(models.Host)).all()
+    lookup = {discovery.normalize_hostname(host.hostname): host for host in known_hosts}
+
+    results: list[HostDiscovery] = []
+    for entry in discovered:
+        host = lookup.get(discovery.normalize_hostname(entry.hostname))
+        results.append(
+            HostDiscovery(
+                hostname=entry.hostname,
+                addresses=entry.addresses,
+                sources=entry.sources,
+                tags=entry.tags,
+                ssh_aliases=entry.ssh_aliases,
+                known_host_id=host.id if host else None,
+                is_active=host.is_active if host else None,
+                allow_privileged=host.allow_privileged if host else None,
+                warnings=entry.warnings,
+            )
+        )
+    results.sort(key=lambda item: item.hostname)
+    return results
+
+
+@router.post("/discover/hosts/check", response_model=HostCheckResponse)
+def check_host(payload: HostCheckRequest) -> HostCheckResponse:
+    result = discovery.verify_ssh(payload.target, timeout=payload.timeout or 5)
+    return HostCheckResponse(
+        target=result.target,
+        reachable=result.reachable,
+        authenticated=result.authenticated,
+        returncode=result.returncode,
+        stdout=result.stdout,
+        stderr=result.stderr,
+    )
+
+
 @router.post("/hosts", response_model=HostRead, status_code=status.HTTP_201_CREATED)
 def create_host(payload: HostCreate, session: Session = Depends(get_session)) -> HostRead:
     host = session.exec(select(models.Host).where(models.Host.hostname == payload.hostname)).first()
@@ -82,6 +135,10 @@ def create_host(payload: HostCreate, session: Session = Depends(get_session)) ->
         hostname=payload.hostname,
         address=payload.address,
         tags=_tags_to_string(payload.tags),
+        source=payload.source,
+        notes=payload.notes,
+        is_active=payload.is_active if payload.is_active is not None else True,
+        allow_privileged=payload.allow_privileged if payload.allow_privileged is not None else True,
         last_seen_at=datetime.utcnow(),
     )
     session.add(db_host)
@@ -91,6 +148,31 @@ def create_host(payload: HostCreate, session: Session = Depends(get_session)) ->
     return _host_to_schema(db_host)
 
 
+@router.patch("/hosts/{host_id}", response_model=HostRead)
+def update_host(host_id: int, payload: HostUpdate, session: Session = Depends(get_session)) -> HostRead:
+    host = session.get(models.Host, host_id)
+    if not host:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Host not found")
+
+    if payload.address is not None:
+        host.address = payload.address
+    if payload.tags is not None:
+        host.tags = _tags_to_string(payload.tags)
+    if payload.source is not None:
+        host.source = payload.source
+    if payload.notes is not None:
+        host.notes = payload.notes
+    if payload.is_active is not None:
+        host.is_active = payload.is_active
+    if payload.allow_privileged is not None:
+        host.allow_privileged = payload.allow_privileged
+
+    session.add(host)
+    session.commit()
+    session.refresh(host)
+    return _host_to_schema(host)
+
+
 def _run_assessment(job_id: int) -> None:
     """Placeholder job runner until SSH integration is implemented."""
 
@@ -98,6 +180,7 @@ def _run_assessment(job_id: int) -> None:
         job = session.get(models.AssessmentJob, job_id)
         if not job:
             return
+        host = session.get(models.Host, job.host_id)
         job.status = "running"
         job.started_at = datetime.utcnow()
         session.add(job)
@@ -109,9 +192,13 @@ def _run_assessment(job_id: int) -> None:
         job.finished_at = datetime.utcnow()
         session.add(job)
 
+        privileged_note = ""
+        if host and not host.allow_privileged:
+            privileged_note = "\n\n_note: Privileged probes were skipped (sudo disabled for this host)._"
+
         report = models.Report(
             job_id=job.id,
-            rendered_markdown="Assessment pending implementation.",
+            rendered_markdown="Assessment pending implementation." + privileged_note,
             raw_payload=None,
         )
         session.add(report)

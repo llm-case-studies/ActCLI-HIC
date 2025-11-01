@@ -11,6 +11,10 @@ class Host(SQLModel, table=True):
     hostname: str = Field(index=True)
     address: Optional[str] = Field(default=None, description="IPv4/IPv6 address")
     tags: Optional[str] = Field(default=None, description="Comma separated tags")
+    source: Optional[str] = Field(default=None, description="Discovery source", index=True)
+    notes: Optional[str] = Field(default=None, description="Operator notes")
+    is_active: bool = Field(default=True, description="Whether host should receive assessments", index=True)
+    allow_privileged: bool = Field(default=True, description="Whether sudo/privileged probes are permitted")
     last_seen_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

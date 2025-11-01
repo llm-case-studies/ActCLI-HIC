@@ -32,3 +32,8 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 "agents.hw_assessor" = []
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.2",
+]

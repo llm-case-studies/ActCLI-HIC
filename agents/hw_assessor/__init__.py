@@ -6,6 +6,7 @@ Requires standard Linux tooling (dmidecode, lscpu, lsblk, lspci, free).
 Optional utilities (nvme, nvidia-smi) enrich the output when present.
 """
 
+import argparse
 import json
 import os
 import re
@@ -13,6 +14,10 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
+from dataclasses import dataclass
+from getpass import getpass
+from typing import Sequence
 
 STORAGE_HINTS = {
     "Raider GE78 HX 14VGG": {
@@ -26,13 +31,226 @@ STORAGE_HINTS = {
 }
 
 
-def run(cmd):
-    """Run a command and return stdout, or empty string on failure."""
+@dataclass
+class CommandResult:
+    cmd: Sequence[str]
+    stdout: str = ""
+    stderr: str = ""
+    returncode: int | None = None
+    timed_out: bool = False
+    error: str | None = None
+    duration: float | None = None
+
+    @property
+    def success(self) -> bool:
+        return not self.error and not self.timed_out and (self.returncode in (0, None))
+
+
+_COMMAND_LOG: list[CommandResult] = []
+
+
+@dataclass
+class PrivilegeState:
+    is_root: bool = False
+    use_sudo: bool = False
+    requires_password: bool = False
+    password: str | None = None
+    mode: str = "auto"
+    configured: bool = False
+
+
+_PRIV_STATE = PrivilegeState(is_root=(os.geteuid() == 0))
+_WARNED_MISSING_SUDO = False
+
+
+def _sudo_check_noninteractive(timeout: float = 3.0) -> bool:
+    """Return True if sudo can be invoked non-interactively."""
+
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return ""
+        proc = subprocess.run(
+            ["sudo", "-n", "true"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        return False
+    except subprocess.TimeoutExpired:
+        return False
+    return proc.returncode == 0
+
+
+def _sudo_validate_password(password: str, timeout: float = 5.0) -> bool:
+    """Validate a sudo password by attempting `sudo -S -v`."""
+
+    try:
+        proc = subprocess.run(
+            ["sudo", "-S", "-v"],
+            input=f"{password}\n",
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False
+    except subprocess.TimeoutExpired:
+        return False
+    return proc.returncode == 0
+
+
+def configure_privileges(mode: str = "auto", prompt_password: bool = False) -> PrivilegeState:
+    """Determine whether sudo should be used for privileged commands."""
+
+    mode = mode.lower()
+    if mode not in {"auto", "skip", "require"}:
+        raise ValueError(f"Invalid sudo mode: {mode}")
+
+    state = _PRIV_STATE
+    state.mode = mode
+    state.is_root = os.geteuid() == 0
+    state.configured = True
+    state.use_sudo = False
+    state.requires_password = False
+    state.password = None
+
+    if state.is_root:
+        return state
+
+    if mode == "skip":
+        return state
+
+    if _sudo_check_noninteractive():
+        state.use_sudo = True
+        return state
+
+    if prompt_password or mode == "require":
+        password = getpass("sudo password: ") if prompt_password else getpass("sudo password (required): ")
+        if password and _sudo_validate_password(password):
+            state.use_sudo = True
+            state.requires_password = True
+            state.password = password
+            return state
+        if mode == "require":
+            print("ERROR: sudo access is required but credentials were rejected.", file=sys.stderr)
+            raise SystemExit(1)
+
+    return state
+
+
+def _reset_privileges_for_tests():  # pragma: no cover - helper for unit tests
+    state = _PRIV_STATE
+    state.is_root = os.geteuid() == 0
+    state.use_sudo = False
+    state.requires_password = False
+    state.password = None
+    state.mode = "auto"
+    state.configured = False
+
+
+def run(
+    cmd: Sequence[str],
+    *,
+    timeout: float = 10.0,
+    optional: bool = False,
+    needs_root: bool = False,
+) -> CommandResult:
+    """Execute ``cmd`` with guardrails, sudo awareness, and diagnostics."""
+
+    global _WARNED_MISSING_SUDO
+    start = time.perf_counter()
+    display = " ".join(cmd)
+    full_cmd = list(cmd)
+    input_data: str | None = None
+
+    if needs_root and not _PRIV_STATE.is_root:
+        if not _PRIV_STATE.configured:
+            configure_privileges()
+        if _PRIV_STATE.use_sudo:
+            if _PRIV_STATE.requires_password and _PRIV_STATE.password:
+                full_cmd = ["sudo", "-S"] + full_cmd
+                input_data = f"{_PRIV_STATE.password}\n"
+            else:
+                full_cmd = ["sudo", "-n"] + full_cmd
+        else:
+            if not optional and not _WARNED_MISSING_SUDO:
+                print(
+                    "INFO: Running without sudo; privileged command may fail: "
+                    f"{display}",
+                    file=sys.stderr,
+                )
+                _WARNED_MISSING_SUDO = True
+
+    try:
+        run_kwargs = dict(
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+        if input_data is not None:
+            completed = subprocess.run(full_cmd, input=input_data, **run_kwargs)
+        else:
+            completed = subprocess.run(full_cmd, stdin=subprocess.DEVNULL, **run_kwargs)
+    except FileNotFoundError:
+        duration = time.perf_counter() - start
+        failed = full_cmd[0] if full_cmd else cmd[0]
+        result = CommandResult(cmd=tuple(full_cmd), error=f"Command not found: {failed}", duration=duration)
+        if not optional:
+            print(f"WARNING: {result.error}", file=sys.stderr)
+        _COMMAND_LOG.append(result)
+        return result
+    except subprocess.TimeoutExpired as exc:
+        stdout = (exc.output or "").strip()
+        stderr = (exc.stderr or "").strip()
+        duration = time.perf_counter() - start
+        result = CommandResult(
+            cmd=tuple(full_cmd),
+            stdout=stdout,
+            stderr=stderr,
+            timed_out=True,
+            error=f"Timed out after {timeout:.1f}s: {' '.join(full_cmd)}",
+            duration=duration,
+        )
+        print(f"WARNING: {result.error}", file=sys.stderr)
+        _COMMAND_LOG.append(result)
+        return result
+
+    duration = time.perf_counter() - start
+    stdout = completed.stdout.strip() if completed.stdout else ""
+    stderr = completed.stderr.strip() if completed.stderr else ""
+    result = CommandResult(
+        cmd=tuple(full_cmd),
+        stdout=stdout,
+        stderr=stderr,
+        returncode=completed.returncode,
+        duration=duration,
+    )
+
+    if completed.returncode != 0:
+        result.error = stderr or stdout or f"Exit code {completed.returncode}"
+        level = "INFO" if optional else "WARNING"
+        print(
+            f"{level}: Command '{' '.join(full_cmd)}' exited with {completed.returncode}: {result.error}",
+            file=sys.stderr,
+        )
+
+    _COMMAND_LOG.append(result)
+    return result
+
+
+def get_command_log() -> list[CommandResult]:
+    """Return a snapshot of recorded command executions."""
+
+    return list(_COMMAND_LOG)
+
+
+def clear_command_log() -> None:
+    """Reset recorded command executions (intended for tests)."""
+
+    _COMMAND_LOG.clear()
 
 
 def collect_system_info():
@@ -42,16 +260,16 @@ def collect_system_info():
         ("product_name", "-s system-product-name"),
         ("bios_version", "-s bios-version"),
     ]:
-        out = run(["dmidecode"] + opt.split())
-        if out:
-            info[key] = out
+        result = run(["dmidecode"] + opt.split(), timeout=15.0, needs_root=True)
+        if result.success and result.stdout:
+            info[key] = result.stdout
     return info
 
 
 def collect_cpu_info():
-    raw = run(["lscpu"])
+    raw = run(["lscpu"], timeout=10.0)
     data = {}
-    for line in raw.splitlines():
+    for line in raw.stdout.splitlines():
         if ":" not in line:
             continue
         k, v = [x.strip() for x in line.split(":", 1)]
@@ -60,13 +278,13 @@ def collect_cpu_info():
 
 
 def collect_memory_info():
-    raw = run(["dmidecode", "-t", "memory"])
+    raw = run(["dmidecode", "-t", "memory"], timeout=20.0, needs_root=True)
     devices = []
     array_info = {}
     current_device = None
     section = None
 
-    for line in raw.splitlines():
+    for line in raw.stdout.splitlines():
         line = line.rstrip()
         if not line or line.startswith("# dmidecode"):
             continue
@@ -126,11 +344,11 @@ def collect_memory_info():
 
 
 def collect_storage():
-    raw = run(["lsblk", "-J", "-o", "NAME,MODEL,SIZE,TYPE,MOUNTPOINT,ROTA,TRAN"])
-    if not raw:
+    raw = run(["lsblk", "-J", "-o", "NAME,MODEL,SIZE,TYPE,MOUNTPOINT,ROTA,TRAN"], timeout=15.0)
+    if not raw.stdout:
         return []
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(raw.stdout)
     except json.JSONDecodeError:
         return []
     disks = []
@@ -149,19 +367,20 @@ def collect_storage():
 def collect_nvme():
     if shutil.which("nvme") is None:
         return ""
-    return run(["nvme", "list"])
+    result = run(["nvme", "list"], timeout=15.0, optional=True)
+    return result.stdout
 
 
 def collect_gpu():
-    pci = run(["lspci"])
+    pci = run(["lspci"], timeout=10.0)
     gpus_pci = [
-        line for line in pci.splitlines()
+        line for line in pci.stdout.splitlines()
         if any(tok in line.lower() for tok in ("vga", "3d", "display"))
     ]
     parsed_nv = []
     if shutil.which("nvidia-smi"):
-        nvidia = run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"])
-        for line in nvidia.splitlines():
+        nvidia = run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"], timeout=15.0, optional=True)
+        for line in nvidia.stdout.splitlines():
             parts = [p.strip() for p in line.split(",")]
             if len(parts) == 2:
                 parsed_nv.append({"name": parts[0], "memory": parts[1]})
@@ -549,9 +768,31 @@ def format_markdown(system, cpu, metrics, mem_info, disks, gpus_pci, gpus_nv, ra
     return "\n".join(lines)
 
 
-def main():
-    if os.geteuid() != 0:
-        print("WARNING: run this script with sudo for complete accuracy (dmidecode needs root).", file=sys.stderr)
+def main(argv: Sequence[str] | None = None):
+    parser = argparse.ArgumentParser(description="Hardware capability assessor")
+    parser.add_argument(
+        "--sudo-mode",
+        choices=["auto", "skip", "require"],
+        default="auto",
+        help="How to handle privileged commands (default: auto)",
+    )
+    parser.add_argument(
+        "--prompt-sudo",
+        action="store_true",
+        help="Prompt for sudo password if passwordless sudo is unavailable",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        configure_privileges(mode=args.sudo_mode, prompt_password=args.prompt_sudo)
+    except SystemExit as exc:
+        return exc.code
+
+    if not _PRIV_STATE.is_root and not _PRIV_STATE.use_sudo:
+        print(
+            "WARNING: running without sudo; memory details may be incomplete (dmidecode needs root).",
+            file=sys.stderr,
+        )
 
     required_tools = ["dmidecode", "lscpu", "lsblk", "lspci", "free"]
     missing = [tool for tool in required_tools if shutil.which(tool) is None]
@@ -564,8 +805,8 @@ def main():
     cpu = collect_cpu_info()
     mem_info = collect_memory_info()
     total_mem_mb = None
-    free_output = run(["free", "-m"])
-    match = re.search(r"Mem:\s+(\d+)", free_output)
+    free_output = run(["free", "-m"], timeout=5.0)
+    match = re.search(r"Mem:\s+(\d+)", free_output.stdout)
     if match:
         total_mem_mb = int(match.group(1))
     disks = collect_storage()

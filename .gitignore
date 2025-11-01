@@ -20,6 +20,9 @@ node_modules/
 .pytest_cache/
 htmlcov/
 
+# Local data artifacts
+data/
+
 # OS files
 .DS_Store
 Thumbs.db
