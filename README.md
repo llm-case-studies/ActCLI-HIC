@@ -7,6 +7,7 @@ The Hardware Insight Console bridges the gap between powerful CLI tooling and ap
 ## Current Contents
 - `agents/hw_assessor/` – Packaged Markdown report generator with module entrypoints.
 - `hw_assessor.py` – Backwards-compatible launcher for the packaged assessor.
+- `app/` – FastAPI backend scaffold (models, routes, config).
 - `hw_assessor-readme.md` – Usage and deployment notes for the script.
 - `hw_assessor-msi-raider-linux.local.*` – Sample output/logs captured from a real machine.
 - `Vision-Concept.md` – Product strategy, MVP scope, and roadmap.
@@ -64,3 +65,16 @@ pytest
 ```
 
 The repository’s `pyproject.toml` defines project metadata, entry points, and will grow with API dependencies as the FastAPI service takes shape.
+
+## Running the API Skeleton
+```bash
+uvicorn app.main:app --reload
+```
+
+The scaffold exposes REST endpoints under `/api`:
+- `GET /api/hosts` — list registered hosts.
+- `POST /api/hosts` — create a host record.
+- `POST /api/jobs` — queue an assessment (currently a placeholder job that returns canned output).
+- `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/reports/{job_id}` — inspect queued/completed work.
+
+SQLite data is stored under `data/hic.db` by default; override with `HIC_DATABASE_URL` if needed.
