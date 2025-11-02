@@ -1,9 +1,14 @@
 export interface HostSummary {
   id: number;
   hostname: string;
+  address?: string | null;
   tags: string[];
-  lastSeenAt?: string;
-  allowPrivileged?: boolean;
+  source?: string | null;
+  notes?: string | null;
+  is_active?: boolean;
+  allow_privileged?: boolean;
+  ssh_target?: string | null;
+  last_seen_at?: string | null;
 }
 
 export interface ComparisonMetric {
@@ -24,6 +29,27 @@ export interface DiscoveryHost {
   is_active?: boolean | null;
   allow_privileged?: boolean | null;
   warnings: string[];
+}
+
+export interface JobSummary {
+  id: number;
+  host_id: number;
+  status: string;
+  requested_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error_message?: string | null;
+}
+
+export interface HostMetricsResponse {
+  host_id: number;
+  collected_at: string;
+  markdown: string;
+  metrics: Record<string, unknown>;
+  ratings: Record<string, unknown>;
+  tips: string[];
+  storage_hint?: string | null;
+  system: Record<string, unknown>;
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
@@ -67,6 +93,34 @@ export async function importDiscovery(hostnames: string[]): Promise<HostSummary[
   });
   if (!response.ok) {
     throw new Error(`Failed to import discovery (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function createJob(hostId: number): Promise<JobSummary> {
+  const response = await fetch(`${API_BASE}/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ host_id: hostId })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to queue assessment (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function fetchJob(jobId: number): Promise<JobSummary> {
+  const response = await fetch(`${API_BASE}/jobs/${jobId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch job (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function fetchHostMetrics(hostId: number): Promise<HostMetricsResponse> {
+  const response = await fetch(`${API_BASE}/hosts/${hostId}/metrics`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch host metrics (${response.status})`);
   }
   return response.json();
 }

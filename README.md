@@ -74,6 +74,16 @@ npm run preview    # serve the production bundle locally
 
 All exports are stubbed with placeholder data until the API comparison endpoint is available.
 
+For a one-command dev loop you can also use the helper script:
+
+```bash
+# start FastAPI on port 9100
+./hic-dev.sh api
+
+# in another terminal, start the Vite dev server (auto-configures VITE_API_BASE)
+./hic-dev.sh frontend
+```
+
 ## Testing
 Unit tests cover pure helper logic (parsing, recommendations) and serve as a foundation for broader mocks.
 ```bash

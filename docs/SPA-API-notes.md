@@ -5,6 +5,7 @@
 - `GET /api/comparisons?hosts=` — returns placeholder comparison metrics.
 - `GET /api/discover/hosts` — used for discovery view.
 - `POST /api/discover/hosts/import` — promote discovered hostnames into the main host table.
+- `GET /api/hosts/{id}/metrics` — latest assessment bundle for a host (metrics/ratings/tips/markdown).
 
 ## Dev workflow
 - `./hic-dev.sh api` — starts FastAPI on port 9100; uses `.venv`.
