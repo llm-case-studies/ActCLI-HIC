@@ -1,111 +1,89 @@
 # Hardware Insight Console (ActCLI-HIC)
 
-Hardware Insight Console (HIC) turns the existing `hw_assessor.py` hardware profiler into a FastAPI + SPA service that can inventory LAN hosts, run remote assessments over SSH, and present upgrade-friendly reports. This repo currently holds the prototype script, discovery vision, and remote configuration notes while we scaffold the full stack.
+Hardware Insight Console (HIC) bridges the gap between low-level CLI hardware probes and approachable reports. It discovers hosts on the LAN, runs the packaged `agents.hw_assessor` remotely (or locally), captures Markdown + structured metrics, and presents them through a React SPA backed by FastAPI.
 
-The Hardware Insight Console bridges the gap between powerful CLI tooling and approachable reporting for “power casual” users—professionals who rely on their machines but don’t live inside terminals.
+## Highlights
+- **Remote assessments** – FastAPI queues jobs that SSH into hosts (or runs locally) and executes `hw_assessor` with JSON output. Markdown plus structured metrics/ratings/tips are persisted per host.
+- **Autodiscovery** – Avahi + SSH config inspection populate `/api/discover/hosts`; a single click promotes discoveries into the host table.
+- **Theme-aware SPA** – React/Vite UI ships “Explore” and “Compare” modes, live theme switching, upgrade hints, and job triggers.
+- **Job/status tracking** – `/api/jobs` exposes progress/errors so the UI can poll and render actionable feedback.
+- **One-command dev loop** – `hic-dev.sh` starts FastAPI (port 9100) and Vite (port 5173) with consistent environment variables.
 
-## Current Contents
-- `agents/hw_assessor/` – Packaged Markdown report generator with module entrypoints.
-- `hw_assessor.py` – Backwards-compatible launcher for the packaged assessor.
-- `app/` – FastAPI backend scaffold (models, routes, config).
-- `hw_assessor-readme.md` – Usage and deployment notes for the script.
-- `hw_assessor-msi-raider-linux.local.*` – Sample output/logs captured from a real machine.
-- `Vision-Concept.md` – Product strategy, MVP scope, and roadmap.
-- `Github -Info.md` – SSH endpoints for GitHub and Gitea remotes.
-- `docs/backlog.md` – Development backlog and roadmap.
-
-## Roadmap (MVP Week)
-1. Package the hardware assessor for remote execution (Paramiko/AsyncSSH wrapper).
-2. FastAPI service skeleton with `/hosts`, `/jobs`, `/reports/<id>` endpoints and SQLite persistence.
-3. Background job runner to dispatch assessments and collect Markdown output.
-4. React/Vite frontend to trigger runs and render reports.
-
-See `Vision-Concept.md` for full context and long-term plans.
-
-## Git Remotes
-- GitHub: `git@github.com:llm-case-studies/ActCLI-HIC.git`
-- Gitea: `omv-elbo-gitea:FunGitea/ActCLI-HIC.git`
-
-Use `git remote -v` after cloning to confirm both are configured.
-
-## Getting Started
-```bash
-# create a virtual environment for upcoming FastAPI work
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
+## Repository structure
+```
+agents/                 # Packaged assessor (`python -m agents.hw_assessor --output json`)
+app/                    # FastAPI service (models, routes, discovery helpers)
+frontend/               # React/Vite SPA
+docs/                   # Backlog, theme reference, SPA ↔ API notes, etc.
+hic-dev.sh              # Helper script for dev workflow
 ```
 
-Once the FastAPI service lands, we will add `requirements.txt`, backend entrypoints, and frontend tooling. For now, review the vision doc and script to align on architecture.
+See `Vision-Concept.md` for the long-term product vision and `docs/backlog.md` for sprint-level tasks.
 
-## Using the Hardware Assessor Locally
+## Quick start
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e .  # installs the packaged assessor (hw-assessor entrypoint)
+# clone and enter repo
+cd ActCLI-HIC
 
-# run the assessor via module or script
-hw-assessor | tee "hw_assessor-$(hostname).md"
-# or
-python -m agents.hw_assessor
-```
-
-The legacy `./hw_assessor.py` launcher remains available for compatibility and delegates to the packaged module.
-
-## Frontend (SPA) Foundation
-
-The React/Vite SPA lives in `frontend/` and ships two primary modes:
-
-- **Explore** — host-focused tree view for drilling into categories.
-- **Compare** — multi-host grid with export actions (CSV/PDF) wired to client and upcoming API endpoints.
-
-The theme tokens match the broader ActCLI palette (`docs/actcli-theme-reference.md`).
-
-```bash
-# from repository root
-cd frontend
-npm install        # installs Vite + React dependencies
-npm run dev        # launches on http://localhost:5173
-
-npm run build      # type checks + bundles
-npm run preview    # serve the production bundle locally
-```
-
-All exports are stubbed with placeholder data until the API comparison endpoint is available.
-
-For a one-command dev loop you can also use the helper script:
-
-```bash
-# start FastAPI on port 9100
-./hic-dev.sh api
-
-# in another terminal, start the Vite dev server (auto-configures VITE_API_BASE)
-./hic-dev.sh frontend
-```
-
-## Testing
-Unit tests cover pure helper logic (parsing, recommendations) and serve as a foundation for broader mocks.
-```bash
+# Python env
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
-pip install pytest
+pip install "fastapi[standard]" uvicorn sqlmodel pydantic-settings typer
+
+# Frontend deps (Node 18+)
+cd frontend
+npm install
+```
+
+### Dev workflow
+```bash
+# terminal 1 – API on http://localhost:9100
+./hic-dev.sh api
+
+# terminal 2 – SPA on http://localhost:5173 (proxies to API)
+./hic-dev.sh frontend
+```
+The script respects `HIC_API_PORT` / `HIC_VITE_PORT` overrides and sets `VITE_API_BASE` automatically.
+
+### Manual startup
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 9100 --reload
+cd frontend && npm run dev
+```
+
+## Onboarding hosts
+1. **Discover** – Open the SPA (Explore view) or call `GET /api/discover/hosts`. Avahi + SSH config entries appear with import buttons.
+2. **Import** – Click “Import” or `POST /api/discover/hosts/import` with hostnames to promote them into `/api/hosts`.
+3. **Configure SSH** – Ensure each host has an `ssh_target` you can reach non-interactively (e.g. `funhome@omv-elbo.local`). Update `allow_privileged` if passwordless sudo is unavailable.
+4. **Install assessor** – On each remote machine: `pip install actcli-hw-assessor` so both `python3 -m agents.hw_assessor` and `hw-assessor` work.
+5. **Run assessment** – Use the “Run assessment” button or `POST /api/jobs`. Successful jobs populate `/api/hosts/{id}/metrics` and refresh the comparison grid.
+
+## Key API endpoints
+- `GET /api/hosts` – Registered hosts (includes `ssh_target`, privilege flags, timestamps).
+- `POST /api/hosts` / `PATCH /api/hosts/{id}` – Manage host metadata.
+- `GET /api/discover/hosts` → `POST /api/discover/hosts/import` – Discovery workflow.
+- `POST /api/jobs` → `GET /api/jobs/{id}` – Queue and monitor assessments.
+- `GET /api/hosts/{id}/metrics` – Latest Markdown + structured metrics bundle for a host.
+- `GET /api/comparisons?hosts=…&categories=…` – Aggregated data feeding the compare grid.
+
+Swagger UI lives at `http://localhost:9100/docs`.
+
+## Testing
+```bash
+source .venv/bin/activate
 pytest
 ```
+(18 unit tests cover discovery utilities, assessor helpers, and subprocess guardrails.)
 
-The repository’s `pyproject.toml` defines project metadata, entry points, and will grow with API dependencies as the FastAPI service takes shape.
+## Additional docs
+- `docs/actcli-theme-reference.md` – Shared color palettes for ActCLI projects.
+- `docs/SPA-API-notes.md` – Frontend ↔ backend contract notes.
+- `docs/backlog.md` – Sprint backlog & next steps.
 
-## Running the API Skeleton
-```bash
-uvicorn app.main:app --reload
-```
-
-The scaffold exposes REST endpoints under `/api`:
-- `GET /api/hosts` — list registered hosts.
-- `POST /api/hosts` — create a host record.
-- `POST /api/jobs` — queue an assessment (currently a placeholder job that returns canned output).
-- `GET /api/jobs`, `GET /api/jobs/{id}`, `GET /api/reports/{job_id}` — inspect queued/completed work.
-
-SQLite data is stored under `data/hic.db` by default; override with `HIC_DATABASE_URL` if needed.
+## Next steps (high-level)
+- Package/ship the assessor automatically to remote hosts (scp or artifact download).
+- Persist assessment history & expose comparisons over time.
+- Wire CSV/PDF exports to real data (client + server endpoints).
+- Harden credential management (SSH key selection, sudo policy). EOF
