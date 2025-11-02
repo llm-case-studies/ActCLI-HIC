@@ -12,6 +12,7 @@ from .. import models, discovery
 from ..db import get_session, init_db, session_scope
 from ..schemas import (
     ComparisonMetric,
+    DiscoveryImportRequest,
     HostCreate,
     HostRead,
     HostUpdate,
@@ -133,6 +134,54 @@ def check_host(payload: HostCheckRequest) -> HostCheckResponse:
         stdout=result.stdout,
         stderr=result.stderr,
     )
+
+
+@router.post("/discover/hosts/import", response_model=list[HostRead])
+def import_discovered(
+    payload: DiscoveryImportRequest,
+    session: Session = Depends(get_session),
+) -> list[HostRead]:
+    if not payload.hostnames:
+        return []
+
+    existing = {
+        discovery.normalize_hostname(host.hostname): host
+        for host in session.exec(select(models.Host)).all()
+    }
+
+    discovered = {
+        discovery.normalize_hostname(entry.hostname): entry
+        for entry in discovery.discover_hosts()
+    }
+
+    imported: list[HostRead] = []
+    for raw_name in payload.hostnames:
+        key = discovery.normalize_hostname(raw_name)
+        if key in existing:
+            imported.append(_host_to_schema(existing[key]))
+            continue
+        entry = discovered.get(key)
+        if not entry:
+            continue
+
+        tags = _tags_to_string(entry.tags)
+        host = models.Host(
+            hostname=entry.hostname,
+            address=entry.addresses[0] if entry.addresses else None,
+            tags=tags,
+            source=entry.sources[0] if entry.sources else "discovery",
+            notes=None,
+            is_active=payload.is_active,
+            allow_privileged=payload.allow_privileged,
+            last_seen_at=datetime.utcnow(),
+        )
+        session.add(host)
+        session.commit()
+        session.refresh(host)
+        existing[key] = host
+        imported.append(_host_to_schema(host))
+
+    return imported
 
 
 @router.get("/comparisons", response_model=list[ComparisonMetric])

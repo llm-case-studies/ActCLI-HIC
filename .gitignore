@@ -23,6 +23,14 @@ htmlcov/
 # Local data artifacts
 data/
 
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/tsconfig*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -101,3 +101,9 @@ class ComparisonMetric(BaseModel):
     label: str
     value: str | float | int | None
     hint: Optional[str] = None
+
+
+class DiscoveryImportRequest(BaseModel):
+    hostnames: list[str] = Field(default_factory=list)
+    is_active: bool = True
+    allow_privileged: bool = True

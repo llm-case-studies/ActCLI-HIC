@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useAppState } from '../state/appState';
 import { palette } from '../styles/theme';
-import { useHosts } from '../api/hooks';
+import { useHosts, useDiscovery, useImportDiscovery } from '../api/hooks';
 
 const CATEGORY_OPTIONS = [
   { id: 'overview', label: 'Overview' },
@@ -15,6 +15,8 @@ const CATEGORY_OPTIONS = [
 export function ExploreView() {
   const { selectedHost, activeTheme, selectHost } = useAppState();
   const { data: hosts = [], isLoading, isError } = useHosts();
+  const { data: discovery = [], isLoading: loadingDiscovery } = useDiscovery();
+  const importDiscoveryMutation = useImportDiscovery();
   const theme = palette[activeTheme];
 
   const activeHost = hosts.find((h) => String(h.id) === selectedHost) ?? hosts[0];
@@ -69,6 +71,39 @@ export function ExploreView() {
               </button>
             );
           })}
+          {!isLoading && !isError && !hosts.length && (
+            <div style={{ marginTop: '1rem' }}>
+              <p style={{ color: theme.hint, fontSize: '0.85rem' }}>Promote discovered hosts:</p>
+              {loadingDiscovery && <span style={{ color: theme.hint }}>Scanning…</span>}
+              {!loadingDiscovery && discovery.length === 0 && (
+                <span style={{ color: theme.hint }}>No discovery results.</span>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {discovery.map((item) => (
+                  <button
+                    key={item.hostname}
+                    type="button"
+                    onClick={() => importDiscoveryMutation.mutate([item.hostname])}
+                    disabled={importDiscoveryMutation.isLoading}
+                    style={{
+                      textAlign: 'left',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      border: '1px dashed rgba(255,255,255,0.2)',
+                      background: 'rgba(255,255,255,0.05)',
+                      color: theme.text,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {item.hostname}
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: theme.hint }}>
+                      {item.addresses[0] ?? 'unknown address'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <section style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>

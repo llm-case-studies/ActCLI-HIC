@@ -14,6 +14,18 @@ export interface ComparisonMetric {
   hint?: string;
 }
 
+export interface DiscoveryHost {
+  hostname: string;
+  addresses: string[];
+  sources: string[];
+  tags: string[];
+  ssh_aliases: string[];
+  known_host_id?: number | null;
+  is_active?: boolean | null;
+  allow_privileged?: boolean | null;
+  warnings: string[];
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
 export async function fetchHosts(): Promise<HostSummary[]> {
@@ -24,7 +36,7 @@ export async function fetchHosts(): Promise<HostSummary[]> {
   return response.json();
 }
 
-export async function fetchDiscovery(): Promise<unknown> {
+export async function fetchDiscovery(): Promise<DiscoveryHost[]> {
   const response = await fetch(`${API_BASE}/discover/hosts`);
   if (!response.ok) {
     throw new Error(`Failed to fetch discovery (${response.status})`);
@@ -43,6 +55,18 @@ export async function fetchComparison(
   const response = await fetch(`${API_BASE}/comparisons?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch comparison (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function importDiscovery(hostnames: string[]): Promise<HostSummary[]> {
+  const response = await fetch(`${API_BASE}/discover/hosts/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hostnames })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to import discovery (${response.status})`);
   }
   return response.json();
 }
