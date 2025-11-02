@@ -1,15 +1,17 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { useAppState } from '../state/appState';
-import { palette, themeVars } from '../styles/theme';
+import { palette, themeVars, type ThemeName } from '../styles/theme';
 import { ExploreView } from './ExploreView';
 import { CompareView } from './CompareView';
 
 const hostsPlaceholder = ['acer-hl', 'omv-elbo', 'ionos-2c4g'];
 
+const themeOptions: ThemeName[] = ['ledger', 'analyst', 'seminar'];
+
 export default function App() {
   const location = useLocation();
-  const { activeTheme, setMode, mode } = useAppState();
+  const { activeTheme, setMode, mode, setTheme } = useAppState();
 
   useEffect(() => {
     const vars = themeVars(activeTheme);
@@ -66,6 +68,40 @@ export default function App() {
               </li>
             ))}
           </ul>
+        </section>
+        <section>
+          <label
+            htmlFor="theme-select"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem',
+              fontSize: '0.85rem',
+              color: palette[activeTheme].hint
+            }}
+          >
+            Theme
+            <select
+              id="theme-select"
+              value={activeTheme}
+              onChange={(event) => setTheme(event.target.value as ThemeName)}
+              style={{
+                appearance: 'none',
+                background: 'rgba(0,0,0,0.25)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '0.5rem',
+                padding: '0.55rem 0.75rem',
+                color: palette[activeTheme].text,
+                fontSize: '0.9rem'
+              }}
+            >
+              {themeOptions.map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                </option>
+              ))}
+            </select>
+          </label>
         </section>
         <footer style={{ marginTop: 'auto', fontSize: '0.75rem', color: palette[activeTheme].hint }}>
           Theme tokens sourced from docs/actcli-theme-reference.md
