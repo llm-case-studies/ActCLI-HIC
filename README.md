@@ -58,7 +58,8 @@ cd frontend && npm run dev
 2. **Import** – Click “Import” or `POST /api/discover/hosts/import` with hostnames to promote them into `/api/hosts`.
 3. **Configure SSH** – Ensure each host has an `ssh_target` you can reach non-interactively (e.g. `funhome@omv-elbo.local`). Update `allow_privileged` if passwordless sudo is unavailable.
 4. **Install assessor** – On each remote machine: `pip install actcli-hw-assessor` so both `python3 -m agents.hw_assessor` and `hw-assessor` work.
-5. **Run assessment** – Use the “Run assessment” button or `POST /api/jobs`. Successful jobs populate `/api/hosts/{id}/metrics` and refresh the comparison grid.
+5. **Decide on sudo strategy** – Options range from passwordless sudo (see `docs/sudo-access.md`) to per-run prompting for single-machine setups.
+6. **Run assessment** – Use the “Run assessment” button or `POST /api/jobs`. Successful jobs populate `/api/hosts/{id}/metrics` and refresh the comparison grid.
 
 ## Key API endpoints
 - `GET /api/hosts` – Registered hosts (includes `ssh_target`, privilege flags, timestamps).

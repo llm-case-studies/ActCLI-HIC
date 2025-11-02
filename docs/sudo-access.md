@@ -35,7 +35,15 @@ Advantages: easier to audit and revoke without touching interactive user account
 If privileged commands are impossible, set `allow_privileged=false` for the host (`PATCH /api/hosts/{id}`).  Assessments will still gather basic data (CPU via `/proc`, memory totals via `free`, etc.) but DIMM slot details and certain storage hints will be missing.  The UI surfaces the reduced coverage.
 
 ## Capturing password interactively?
-We intentionally avoid collecting sudo passwords.  Passing them from the SPA to the backend introduces significant security and storage concerns (transport, audit, rotation).  Instead we recommend one of the NOPASSWD approaches above.  If interactive prompts become necessary, plan on brokering them over a secure channel (e.g., WebSocket + short-lived secrets) and scrubbing all logs.
+For shared or IT-managed fleets we intentionally avoid collecting sudo passwords; it adds risk (transport, storage, audit trail).  For **single-machine** deployments where FastAPI and the SPA run on the same laptop/desktop, prompting the operator is acceptable: the password never leaves the machine and can be forwarded to `sudo -S` for that invocation only.
+
+Suggested shape if you enable prompting:
+- SPA opens a modal asking for the sudo password when an assessment fails due to `sudo: a password is required`.
+- Password is sent to a dedicated `/api/jobs/{id}/sudo` endpoint over HTTPS.
+- Backend pipes the secret directly to `sudo -S`, stores it in memory only, and wipes buffers immediately after use.
+- The job response should make it clear whether the password was accepted; never persist the secret or log it.
+
+This approach keeps casual power users productive while still allowing enterprise deployments to rely on Options A/B.
 
 ## Shipping the assessor binary
 Currently we expect the target host to have `actcli-hw-assessor` installed.  Future tasks:
@@ -43,4 +51,4 @@ Currently we expect the target host to have `actcli-hw-assessor` installed.  Fut
 - Check `python3 -m agents.hw_assessor` failure and fall back to uploading the module for ephemeral execution.
 - Add health checks to warn when the assessor is missing or outdated.
 
-Track these improvements in the backlog under “Immediate Next Steps”.
+Track these improvements (auto-distribution, optional password prompt) in the backlog under “Immediate Next Steps”.

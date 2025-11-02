@@ -71,3 +71,4 @@
 - [ ] Surface Markdown report in the SPA with copy/download controls.
 - [ ] Finish CSV/PDF export endpoints and wire client controls.
 - [ ] Harden credential management (SSH key selection, sudo policy overrides).
+- [ ] Implement optional sudo password prompt for single-machine deployments (in-memory secret, wiped after use).
