@@ -1,7 +1,7 @@
 """Pydantic models for API input/output."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,7 @@ class HostCreate(BaseModel):
     notes: Optional[str] = None
     is_active: Optional[bool] = True
     allow_privileged: Optional[bool] = True
+    ssh_target: Optional[str] = None
 
 
 class HostRead(BaseModel):
@@ -25,6 +26,7 @@ class HostRead(BaseModel):
     notes: Optional[str]
     is_active: bool
     allow_privileged: bool
+    ssh_target: Optional[str]
     last_seen_at: Optional[datetime]
     created_at: datetime
 
@@ -39,6 +41,7 @@ class HostUpdate(BaseModel):
     notes: Optional[str] = None
     is_active: Optional[bool] = None
     allow_privileged: Optional[bool] = None
+    ssh_target: Optional[str] = None
 
 
 class JobCreate(BaseModel):
@@ -93,3 +96,28 @@ class HostCheckResponse(BaseModel):
     returncode: int
     stdout: str
     stderr: str
+
+
+class ComparisonMetric(BaseModel):
+    host_id: int
+    category: str
+    label: str
+    value: str | float | int | None
+    hint: Optional[str] = None
+
+
+class DiscoveryImportRequest(BaseModel):
+    hostnames: list[str] = Field(default_factory=list)
+    is_active: bool = True
+    allow_privileged: bool = True
+
+
+class HostMetrics(BaseModel):
+    host_id: int
+    collected_at: datetime
+    markdown: str
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    ratings: dict[str, Any] = Field(default_factory=dict)
+    tips: list[str] = Field(default_factory=list)
+    storage_hint: Optional[str] = None
+    system: dict[str, Any] = Field(default_factory=dict)

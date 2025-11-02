@@ -52,6 +52,8 @@ def _maybe_upgrade_schema(engine) -> None:
             connection.execute(text("ALTER TABLE host ADD COLUMN notes TEXT"))
         if "is_active" not in columns:
             connection.execute(text("ALTER TABLE host ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+        if "ssh_target" not in columns:
+            connection.execute(text("ALTER TABLE host ADD COLUMN ssh_target TEXT"))
         if "allow_privileged" not in columns:
             connection.execute(text("ALTER TABLE host ADD COLUMN allow_privileged BOOLEAN DEFAULT 1"))
 

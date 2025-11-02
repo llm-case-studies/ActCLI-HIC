@@ -15,6 +15,7 @@ class Host(SQLModel, table=True):
     notes: Optional[str] = Field(default=None, description="Operator notes")
     is_active: bool = Field(default=True, description="Whether host should receive assessments", index=True)
     allow_privileged: bool = Field(default=True, description="Whether sudo/privileged probes are permitted")
+    ssh_target: Optional[str] = Field(default=None, description="Preferred SSH target or alias")
     last_seen_at: Optional[datetime] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

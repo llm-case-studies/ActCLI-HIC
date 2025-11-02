@@ -8,6 +8,7 @@ Optional utilities (nvme, nvidia-smi) enrich the output when present.
 
 import argparse
 import json
+from datetime import datetime
 import os
 import re
 import shutil
@@ -768,38 +769,27 @@ def format_markdown(system, cpu, metrics, mem_info, disks, gpus_pci, gpus_nv, ra
     return "\n".join(lines)
 
 
-def main(argv: Sequence[str] | None = None):
-    parser = argparse.ArgumentParser(description="Hardware capability assessor")
-    parser.add_argument(
-        "--sudo-mode",
-        choices=["auto", "skip", "require"],
-        default="auto",
-        help="How to handle privileged commands (default: auto)",
-    )
-    parser.add_argument(
-        "--prompt-sudo",
-        action="store_true",
-        help="Prompt for sudo password if passwordless sudo is unavailable",
-    )
-    args = parser.parse_args(argv)
+def _command_result_to_dict(result: CommandResult) -> dict[str, object]:
+    return {
+        "cmd": list(result.cmd),
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "returncode": result.returncode,
+        "timed_out": result.timed_out,
+        "error": result.error,
+        "duration": result.duration,
+    }
 
-    try:
-        configure_privileges(mode=args.sudo_mode, prompt_password=args.prompt_sudo)
-    except SystemExit as exc:
-        return exc.code
 
-    if not _PRIV_STATE.is_root and not _PRIV_STATE.use_sudo:
-        print(
-            "WARNING: running without sudo; memory details may be incomplete (dmidecode needs root).",
-            file=sys.stderr,
-        )
+def generate_report_data() -> dict[str, object]:
+    """Collect system information and return structured report data."""
+
+    clear_command_log()
 
     required_tools = ["dmidecode", "lscpu", "lsblk", "lspci", "free"]
     missing = [tool for tool in required_tools if shutil.which(tool) is None]
     if missing:
-        print(f"Missing required tools: {', '.join(missing)}", file=sys.stderr)
-        print("Install them before rerunning.", file=sys.stderr)
-        return 1
+        raise RuntimeError(f"Missing required tools: {', '.join(missing)}")
 
     system = collect_system_info()
     cpu = collect_cpu_info()
@@ -817,9 +807,91 @@ def main(argv: Sequence[str] | None = None):
     ratings = role_rating(metrics)
     storage_hint_text = storage_slot_hint(system.get("product_name"), disks)
     tips = upgrade_suggestions(metrics, disks, nvme_raw, storage_hint_text)
-    report = format_markdown(system, cpu, metrics, mem_info, disks, gpus_pci, gpus_nv, ratings, tips, nvme_raw, storage_hint_text)
+    markdown = format_markdown(
+        system,
+        cpu,
+        metrics,
+        mem_info,
+        disks,
+        gpus_pci,
+        gpus_nv,
+        ratings,
+        tips,
+        nvme_raw,
+        storage_hint_text,
+    )
 
-    print(report)
+    command_log = [_command_result_to_dict(entry) for entry in get_command_log()]
+    clear_command_log()
+
+    return {
+        "markdown": markdown,
+        "metrics": metrics,
+        "ratings": ratings,
+        "tips": tips,
+        "storage_hint": storage_hint_text,
+        "system": system,
+        "cpu": cpu,
+        "memory": mem_info,
+        "disks": disks,
+        "gpus_pci": gpus_pci,
+        "gpus_nv": gpus_nv,
+        "nvme_raw": nvme_raw,
+        "command_log": command_log,
+        "collected_at": datetime.utcnow().isoformat(),
+        "hostname": socket.gethostname(),
+    }
+
+
+def main(argv: Sequence[str] | None = None):
+    parser = argparse.ArgumentParser(description="Hardware capability assessor")
+    parser.add_argument(
+        "--sudo-mode",
+        choices=["auto", "skip", "require"],
+        default="auto",
+        help="How to handle privileged commands (default: auto)",
+    )
+    parser.add_argument(
+        "--prompt-sudo",
+        action="store_true",
+        help="Prompt for sudo password if passwordless sudo is unavailable",
+    )
+    parser.add_argument(
+        "--output",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Select output format (default: markdown)",
+    )
+    parser.add_argument(
+        "--pretty-json",
+        action="store_true",
+        help="Pretty-print JSON output",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        configure_privileges(mode=args.sudo_mode, prompt_password=args.prompt_sudo)
+    except SystemExit as exc:
+        return exc.code
+
+    if not _PRIV_STATE.is_root and not _PRIV_STATE.use_sudo:
+        print(
+            "WARNING: running without sudo; memory details may be incomplete (dmidecode needs root).",
+            file=sys.stderr,
+        )
+
+    try:
+        data = generate_report_data()
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        print("Install missing tools before rerunning.", file=sys.stderr)
+        return 1
+
+    if args.output == "json":
+        print(json.dumps(data, indent=2 if args.pretty_json else None))
+    else:
+        print(data["markdown"])
+
     return 0
 
 

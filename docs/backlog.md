@@ -1,27 +1,27 @@
 # ActCLI-HIC Backlog
 
 ## Sprint 0 – Infrastructure & Base Agent
-- [ ] Package `hw_assessor.py` as an installable module with CLI entrypoint.
-- [ ] Add unit tests for Markdown generator (fixtures from `hw_assessor-msi-raider-linux.local.md`).
+- [x] Package `hw_assessor.py` as an installable module with CLI entrypoint.
+- [x] Add unit tests for Markdown generator (fixtures from `hw_assessor-msi-raider-linux.local.md`).
 - [ ] Establish packaging/publishing workflow (uv/poetry) and Pin dependencies.
 - [ ] Create example inventory (`config/hosts.example.yaml`) with SSH options.
 
 ## Sprint 1 – FastAPI Service
-- [ ] Scaffold FastAPI project layout (`app/main.py`, routers, models).
-- [ ] Introduce SQLite via SQLModel or SQLAlchemy for hosts/jobs/reports.
-- [ ] Implement `/hosts` (list/create/update) and `/jobs` (submit assessment request).
-- [ ] Wire background task queue (FastAPI BackgroundTasks or `asyncio.create_task`).
-- [ ] Integrate SSH executor using AsyncSSH with timeout/error handling.
+- [x] Scaffold FastAPI project layout (`app/main.py`, routers, models).
+- [x] Introduce SQLite via SQLModel or SQLAlchemy for hosts/jobs/reports.
+- [x] Implement `/hosts` (list/create/update) and `/jobs` (submit assessment request).
+- [x] Wire background task queue (FastAPI BackgroundTasks or `asyncio.create_task`).
+- [x] Integrate SSH executor using AsyncSSH with timeout/error handling.
 
 ## Sprint 2 – Discovery & Caching
-- [ ] Build Avahi/mDNS discovery probe (async subprocess wrapper for `avahi-browse`).
-- [ ] Normalize host metadata (hostname, IPv4, vendor) and persist in DB.
+- [x] Build Avahi/mDNS discovery probe (async subprocess wrapper for `avahi-browse`).
+- [x] Normalize host metadata (hostname, IPv4, vendor) and persist in DB.
 - [ ] Schedule periodic refresh and mark stale/offline hosts.
 
 ## Sprint 3 – Frontend SPA
-- [ ] Scaffold React/Vite app under `frontend/` with Tailwind or Chakra.
-- [ ] Implement host list view with filtering and status tags.
-- [ ] Build job trigger modal and live status polling.
+- [x] Scaffold React/Vite app under `frontend/` with Tailwind or Chakra.
+- [x] Implement host list view with filtering and status tags.
+- [x] Build job trigger modal and live status polling.
 - [ ] Render Markdown report with `react-markdown` + copy/download actions.
 
 ## Sprint 4 – Knowledge Layer & UX Polish
@@ -62,3 +62,12 @@
   - Return `Attachment` downloads; reuse serializer, guard with auth & rate limits.
 - Preserve theme tokens across exports; provide a print-friendly (high-contrast) toggle.
 - Document the workflow in the design system so other ActCLI apps follow the same pattern.
+
+### Immediate Next Steps
+
+- [ ] Distribute assessor binary/module automatically to remote hosts (scp or release artifact).
+- [ ] Persist assessment history per host and expose comparison over time.
+- [ ] Replace comparison placeholders with real metric summaries (CPU/RAM/storage deltas, warnings).
+- [ ] Surface Markdown report in the SPA with copy/download controls.
+- [ ] Finish CSV/PDF export endpoints and wire client controls.
+- [ ] Harden credential management (SSH key selection, sudo policy overrides).
