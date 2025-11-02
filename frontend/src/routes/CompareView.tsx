@@ -1,27 +1,51 @@
 import { useMemo } from 'react';
-import { useAppState } from '../state/appState';
+import { useAppState, type CategoryId } from '../state/appState';
 import { palette } from '../styles/theme';
+import { useHosts, useComparison } from '../api/hooks';
 
-const mockHosts = ['acer-hl', 'omv-elbo', 'ionos-2c4g'];
-const mockCategories = [
+const CATEGORY_OPTIONS: { id: CategoryId; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
   { id: 'memory', label: 'Memory' },
   { id: 'storage', label: 'Storage' },
-  { id: 'cpu', label: 'CPU' }
+  { id: 'cpu', label: 'CPU' },
+  { id: 'gpu', label: 'GPU' },
+  { id: 'software', label: 'Software' }
 ];
 
 export function CompareView() {
   const { activeTheme, compareHosts, toggleCompareHost, compareCategories, setCompareCategories } = useAppState();
   const theme = palette[activeTheme];
+  const { data: hosts = [] } = useHosts();
+  const { data: comparison = [], isLoading: loadingComparison, isError: comparisonError } = useComparison(
+    compareHosts,
+    compareCategories
+  );
+
+  const hostLookup = useMemo(() => {
+    const lookup = new Map<string, string>();
+    hosts.forEach((host) => lookup.set(String(host.id), host.hostname));
+    return lookup;
+  }, [hosts]);
 
   const table = useMemo(() => {
-    if (!compareHosts.length) return [];
-    return compareHosts.map((host) => ({
-      host,
-      memory: '32 GB / 64 GB max',
-      storage: '2 × NVMe (1 free)',
-      cpu: '16c / 32t'
+    if (!compareHosts.length) {
+      return [];
+    }
+    const grouped = new Map<string, Record<CategoryId, string>>();
+    comparison.forEach((metric) => {
+      const hostId = String(metric.host_id);
+      const bucket = grouped.get(hostId) ?? ({} as Record<CategoryId, string>);
+      const text = metric.label ? `${metric.label}: ${metric.value ?? 'n/a'}` : String(metric.value ?? 'n/a');
+      const category = metric.category as CategoryId;
+      bucket[category] = bucket[category] ? `${bucket[category]} • ${text}` : text;
+      grouped.set(hostId, bucket);
+    });
+    return compareHosts.map((hostId) => ({
+      hostId,
+      hostName: hostLookup.get(hostId) ?? hostId,
+      metrics: grouped.get(hostId) ?? ({} as Record<CategoryId, string>)
     }));
-  }, [compareHosts]);
+  }, [compareHosts, comparison, hostLookup]);
 
   return (
     <div style={{ padding: '1.5rem', display: 'grid', gap: '1.5rem' }}>
@@ -35,12 +59,14 @@ export function CompareView() {
         <div style={{ background: theme.surface, borderRadius: '1rem', padding: '1.25rem' }}>
           <h3 style={{ marginTop: 0 }}>Hosts</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {mockHosts.map((host) => {
-              const active = compareHosts.includes(host);
+            {hosts.length === 0 && <span style={{ color: theme.hint }}>No hosts available.</span>}
+            {hosts.map((host) => {
+              const hostId = String(host.id);
+              const active = compareHosts.includes(hostId);
               return (
-                <label key={host} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <input type="checkbox" checked={active} onChange={() => toggleCompareHost(host)} />
-                  <span>{host}</span>
+                <label key={host.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <input type="checkbox" checked={active} onChange={() => toggleCompareHost(hostId)} />
+                  <span>{host.hostname}</span>
                 </label>
               );
             })}
@@ -49,18 +75,18 @@ export function CompareView() {
         <div style={{ background: theme.surface, borderRadius: '1rem', padding: '1.25rem' }}>
           <h3 style={{ marginTop: 0 }}>Categories</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {mockCategories.map((category) => {
-              const active = compareCategories.includes(category.id as never);
+            {CATEGORY_OPTIONS.map((category) => {
+              const active = compareCategories.includes(category.id);
               return (
                 <label key={category.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <input
                     type="checkbox"
                     checked={active}
                     onChange={() => {
-                      const next = active
-                        ? compareCategories.filter((id) => id !== (category.id as never))
-                        : [...compareCategories, category.id as never];
-                      setCompareCategories(next as never);
+                      const next: CategoryId[] = active
+                        ? compareCategories.filter((id) => id !== category.id)
+                        : [...compareCategories, category.id];
+                      setCompareCategories(next);
                     }}
                   />
                   <span>{category.label}</span>
@@ -89,26 +115,33 @@ export function CompareView() {
       </section>
       <section style={{ background: theme.surface, borderRadius: '1rem', padding: '1.5rem' }}>
         <h3 style={{ marginTop: 0 }}>Comparison Table</h3>
-        {!table.length ? (
+        {loadingComparison && <p style={{ color: theme.hint }}>Loading metrics…</p>}
+        {comparisonError && <p style={{ color: theme.hint }}>Unable to load comparison metrics.</p>}
+        {!loadingComparison && !comparisonError && !compareHosts.length && (
           <p style={{ color: theme.hint }}>Select at least one host to populate metrics.</p>
-        ) : (
+        )}
+        {!loadingComparison && !comparisonError && compareHosts.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ background: 'rgba(255,255,255,0.05)' }}>
                 <tr>
                   <th style={thStyle}>Host</th>
-                  <th style={thStyle}>Memory</th>
-                  <th style={thStyle}>Storage</th>
-                  <th style={thStyle}>CPU</th>
+                  {compareCategories.map((category) => (
+                    <th key={category} style={thStyle}>
+                      {CATEGORY_OPTIONS.find((opt) => opt.id === category)?.label ?? category}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {table.map((row) => (
-                  <tr key={row.host}>
-                    <td style={tdStyle}>{row.host}</td>
-                    <td style={tdStyle}>{row.memory}</td>
-                    <td style={tdStyle}>{row.storage}</td>
-                    <td style={tdStyle}>{row.cpu}</td>
+                  <tr key={row.hostId}>
+                    <td style={tdStyle}>{row.hostName}</td>
+                    {compareCategories.map((category) => (
+                      <td key={category} style={tdStyle}>
+                        {row.metrics[category] ?? '—'}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

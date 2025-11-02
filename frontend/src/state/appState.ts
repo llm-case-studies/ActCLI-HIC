@@ -2,15 +2,7 @@ import { create } from 'zustand';
 import type { ThemeName } from '../styles/theme';
 
 type HostId = string;
-type CategoryId =
-  | 'overview'
-  | 'memory'
-  | 'storage'
-  | 'cpu'
-  | 'gpu'
-  | 'software-services'
-  | 'software-packages'
-  | 'users';
+type CategoryId = 'overview' | 'memory' | 'storage' | 'cpu' | 'gpu' | 'software';
 
 type Mode = 'explore' | 'compare';
 
@@ -38,11 +30,12 @@ export const useAppState = create<AppState>((set) => ({
   selectHost: (selectedHost) => set({ selectedHost, mode: 'explore' }),
   toggleCompareHost: (host) =>
     set((state) => {
-      const exists = state.compareHosts.includes(host);
+      const hostId = String(host);
+      const exists = state.compareHosts.includes(hostId);
       return {
         compareHosts: exists
-          ? state.compareHosts.filter((h) => h !== host)
-          : [...state.compareHosts, host],
+          ? state.compareHosts.filter((h) => h !== hostId)
+          : [...state.compareHosts, hostId],
         mode: 'compare'
       };
     }),

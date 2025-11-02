@@ -5,12 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Iterable
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 
 from .. import models, discovery
 from ..db import get_session, init_db, session_scope
 from ..schemas import (
+    ComparisonMetric,
     HostCreate,
     HostRead,
     HostUpdate,
@@ -23,6 +24,15 @@ from ..schemas import (
 )
 
 router = APIRouter()
+
+COMPARISON_CATEGORIES = {
+    "overview": "Overview",
+    "memory": "Memory",
+    "storage": "Storage",
+    "cpu": "CPU",
+    "gpu": "GPU",
+    "software": "Software",
+}
 
 
 def _parse_tags(tags: str | None) -> list[str]:
@@ -123,6 +133,106 @@ def check_host(payload: HostCheckRequest) -> HostCheckResponse:
         stdout=result.stdout,
         stderr=result.stderr,
     )
+
+
+@router.get("/comparisons", response_model=list[ComparisonMetric])
+def comparison_metrics(
+    hosts: list[int] = Query(default_factory=list),
+    categories: list[str] = Query(default_factory=list),
+    session: Session = Depends(get_session),
+) -> list[ComparisonMetric]:
+    if not hosts:
+        return []
+
+    category_filter = {cat for cat in categories if cat in COMPARISON_CATEGORIES}
+    if not category_filter:
+        category_filter = set(COMPARISON_CATEGORIES.keys()) - {"software"}
+
+    db_hosts = (
+        session.exec(select(models.Host).where(models.Host.id.in_(hosts))).all()
+        if hosts
+        else []
+    )
+    host_lookup = {host.id: host for host in db_hosts}
+
+    metrics: list[ComparisonMetric] = []
+    for host_id in hosts:
+        host = host_lookup.get(host_id)
+        if not host:
+            continue
+
+        if "overview" in category_filter:
+            metrics.append(
+                ComparisonMetric(
+                    host_id=host.id,
+                    category="overview",
+                    label="Status",
+                    value="Active" if host.is_active else "Inactive",
+                    hint=f"Last seen at {host.last_seen_at or 'unknown'}",
+                )
+            )
+
+        if "memory" in category_filter:
+            privileged_hint = (
+                "Privileged data pending — enable sudo for richer details"
+                if not host.allow_privileged
+                else "Run a new assessment to capture DIMM data"
+            )
+            metrics.append(
+                ComparisonMetric(
+                    host_id=host.id,
+                    category="memory",
+                    label="Installed vs Max",
+                    value="Pending",
+                    hint=privileged_hint,
+                )
+            )
+
+        if "storage" in category_filter:
+            metrics.append(
+                ComparisonMetric(
+                    host_id=host.id,
+                    category="storage",
+                    label="Devices",
+                    value="Pending",
+                    hint="Run assessment to populate storage topology",
+                )
+            )
+
+        if "cpu" in category_filter:
+            metrics.append(
+                ComparisonMetric(
+                    host_id=host.id,
+                    category="cpu",
+                    label="Cores / Threads",
+                    value="Pending",
+                    hint="Assessment output will include CPU model and thread count",
+                )
+            )
+
+        if "gpu" in category_filter:
+            metrics.append(
+                ComparisonMetric(
+                    host_id=host.id,
+                    category="gpu",
+                    label="Discrete GPU",
+                    value="Pending",
+                    hint="Assessment captures GPU inventory via lspci / nvidia-smi",
+                )
+            )
+
+        if "software" in category_filter:
+            metrics.append(
+                ComparisonMetric(
+                    host_id=host.id,
+                    category="software",
+                    label="Inventory",
+                    value="Planned",
+                    hint="Software package/services comparison coming in later sprint",
+                )
+            )
+
+    return metrics
 
 
 @router.post("/hosts", response_model=HostRead, status_code=status.HTTP_201_CREATED)

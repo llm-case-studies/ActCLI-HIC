@@ -1,28 +1,30 @@
 import { useMemo } from 'react';
 import { useAppState } from '../state/appState';
 import { palette } from '../styles/theme';
+import { useHosts } from '../api/hooks';
 
-const sampleCategories = [
+const CATEGORY_OPTIONS = [
   { id: 'overview', label: 'Overview' },
   { id: 'memory', label: 'Memory' },
   { id: 'storage', label: 'Storage' },
   { id: 'cpu', label: 'CPU' },
   { id: 'gpu', label: 'GPU' },
-  { id: 'software-services', label: 'Services' },
-  { id: 'software-packages', label: 'Packages' }
+  { id: 'software', label: 'Software' }
 ];
 
 export function ExploreView() {
   const { selectedHost, activeTheme, selectHost } = useAppState();
-  const host = selectedHost ?? 'acer-hl';
+  const { data: hosts = [], isLoading, isError } = useHosts();
   const theme = palette[activeTheme];
+
+  const activeHost = hosts.find((h) => String(h.id) === selectedHost) ?? hosts[0];
   const info = useMemo(
     () => ({
-      host,
+      host: activeHost,
       summary: 'Assessment pending implementation.',
-      categories: sampleCategories
+      categories: CATEGORY_OPTIONS
     }),
-    [host]
+    [activeHost]
   );
 
   return (
@@ -36,57 +38,74 @@ export function ExploreView() {
       >
         <h2 style={{ marginTop: 0, fontSize: '1rem', color: theme.brand }}>Host Explorer</h2>
         <p style={{ color: theme.hint, fontSize: '0.85rem' }}>
-          This is a placeholder tree. API wiring will populate hosts & categories.
+          Browse hosts discovered via the API. Selecting a host will show category panels backed by future assessments.
         </p>
         <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {['acer-hl', 'omv-elbo', 'runpod-edge'].map((h) => (
-            <button
-              key={h}
-              type="button"
-              onClick={() => selectHost(h)}
-              style={{
-                textAlign: 'left',
-                padding: '0.6rem 0.75rem',
-                borderRadius: '0.5rem',
-                border: '1px solid rgba(255,255,255,0.15)',
-                background: h === host ? 'rgba(255,255,255,0.12)' : 'transparent',
-                color: theme.text,
-                cursor: 'pointer'
-              }}
-            >
-              <strong>{h}</strong>
-              <span style={{ display: 'block', fontSize: '0.75rem', color: theme.hint }}>Last seen · pending</span>
-            </button>
-          ))}
+          {isLoading && <span style={{ color: theme.hint }}>Loading hosts…</span>}
+          {isError && <span style={{ color: theme.hint }}>Unable to load hosts.</span>}
+          {!isLoading && !isError && !hosts.length && <span style={{ color: theme.hint }}>No hosts registered.</span>}
+          {hosts.map((host) => {
+            const hostId = String(host.id);
+            const active = hostId === selectedHost;
+            return (
+              <button
+                key={host.id}
+                type="button"
+                onClick={() => selectHost(hostId)}
+                style={{
+                  textAlign: 'left',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
+                  color: theme.text,
+                  cursor: 'pointer'
+                }}
+              >
+                <strong>{host.hostname}</strong>
+                <span style={{ display: 'block', fontSize: '0.75rem', color: theme.hint }}>
+                  last seen · {host.lastSeenAt ?? 'unknown'}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
       <section style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <header>
-          <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{info.host}</h2>
-          <p style={{ color: theme.hint }}>Exploratory view prototype — wiring to FastAPI coming soon.</p>
-        </header>
-        <article style={{ background: theme.surface, borderRadius: '1rem', padding: '1.5rem' }}>
-          <h3 style={{ marginTop: 0, fontSize: '1rem', color: theme.brand }}>Summary</h3>
-          <p style={{ lineHeight: 1.6 }}>{info.summary}</p>
-        </article>
-        <section style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
-          {info.categories.map((category) => (
-            <div
-              key={category.id}
-              style={{
-                padding: '1rem',
-                borderRadius: '0.75rem',
-                background: theme.surface,
-                border: '1px solid rgba(255,255,255,0.08)'
-              }}
-            >
-              <h4 style={{ marginTop: 0 }}>{category.label}</h4>
-              <p style={{ fontSize: '0.85rem', color: theme.hint }}>
-                Data cards will appear here (memory slots, NVMe drives, etc.).
+        {activeHost ? (
+          <>
+            <header>
+              <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{activeHost.hostname}</h2>
+              <p style={{ color: theme.hint }}>
+                Explore host metrics. Assessment integrations will replace the placeholder content below.
               </p>
-            </div>
-          ))}
-        </section>
+            </header>
+            <article style={{ background: theme.surface, borderRadius: '1rem', padding: '1.5rem' }}>
+              <h3 style={{ marginTop: 0, fontSize: '1rem', color: theme.brand }}>Summary</h3>
+              <p style={{ lineHeight: 1.6 }}>{info.summary}</p>
+            </article>
+            <section style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              {info.categories.map((category) => (
+                <div
+                  key={category.id}
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '0.75rem',
+                    background: theme.surface,
+                    border: '1px solid rgba(255,255,255,0.08)'
+                  }}
+                >
+                  <h4 style={{ marginTop: 0 }}>{category.label}</h4>
+                  <p style={{ fontSize: '0.85rem', color: theme.hint }}>
+                    Data cards will appear here (memory slots, NVMe drives, etc.).
+                  </p>
+                </div>
+              ))}
+            </section>
+          </>
+        ) : (
+          <p style={{ color: theme.hint }}>No hosts selected.</p>
+        )}
       </section>
     </div>
   );

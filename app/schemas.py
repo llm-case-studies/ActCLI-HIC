@@ -93,3 +93,11 @@ class HostCheckResponse(BaseModel):
     returncode: int
     stdout: str
     stderr: str
+
+
+class ComparisonMetric(BaseModel):
+    host_id: int
+    category: str
+    label: str
+    value: str | float | int | None
+    hint: Optional[str] = None

@@ -1,17 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { useAppState } from '../state/appState';
 import { palette, themeVars, type ThemeName } from '../styles/theme';
 import { ExploreView } from './ExploreView';
 import { CompareView } from './CompareView';
-
-const hostsPlaceholder = ['acer-hl', 'omv-elbo', 'ionos-2c4g'];
+import { useHosts } from '../api/hooks';
 
 const themeOptions: ThemeName[] = ['ledger', 'analyst', 'seminar'];
 
 export default function App() {
   const location = useLocation();
-  const { activeTheme, setMode, mode, setTheme } = useAppState();
+  const { activeTheme, setMode, mode, setTheme, selectHost, selectedHost } = useAppState();
+  const { data: hosts = [], isLoading } = useHosts();
 
   useEffect(() => {
     const vars = themeVars(activeTheme);
@@ -28,6 +28,14 @@ export default function App() {
       setMode('explore');
     }
   }, [location.pathname, mode, setMode]);
+
+  useEffect(() => {
+    if (!selectedHost && hosts.length) {
+      selectHost(String(hosts[0].id));
+    }
+  }, [hosts, selectHost, selectedHost]);
+
+  const sidebarHosts = useMemo(() => hosts.slice(0, 5), [hosts]);
 
   return (
     <div className="app-shell" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', minHeight: '100vh' }}>
@@ -59,15 +67,21 @@ export default function App() {
         </nav>
         <section>
           <p style={{ fontSize: '0.75rem', color: palette[activeTheme].hint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Sample hosts
+            Hosts
           </p>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            {hostsPlaceholder.map((host) => (
-              <li key={host} style={{ color: palette[activeTheme].text, opacity: 0.6 }}>
-                {host}
-              </li>
-            ))}
-          </ul>
+          {isLoading ? (
+            <p style={{ color: palette[activeTheme].hint }}>Loading…</p>
+          ) : sidebarHosts.length ? (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              {sidebarHosts.map((host) => (
+                <li key={host.id} style={{ color: palette[activeTheme].text, opacity: 0.75 }}>
+                  {host.hostname}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ color: palette[activeTheme].hint }}>No hosts yet</p>
+          )}
         </section>
         <section>
           <label

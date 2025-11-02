@@ -1,5 +1,5 @@
 export interface HostSummary {
-  id: string;
+  id: number;
   hostname: string;
   tags: string[];
   lastSeenAt?: string;
@@ -7,7 +7,7 @@ export interface HostSummary {
 }
 
 export interface ComparisonMetric {
-  hostId: string;
+  host_id: number;
   category: string;
   label: string;
   value: string | number | null;
