@@ -80,6 +80,8 @@ pytest
 ## Additional docs
 - `docs/actcli-theme-reference.md` – Shared color palettes for ActCLI projects.
 - `docs/SPA-API-notes.md` – Frontend ↔ backend contract notes.
+- `docs/UX-journey.md` – Current UI flow (onboarding, assessments, compare view).
+- `docs/sudo-access.md` – Guidelines for configuring passwordless sudo and dedicated accounts.
 - `docs/backlog.md` – Sprint backlog & next steps.
 
 ## Next steps (high-level)
